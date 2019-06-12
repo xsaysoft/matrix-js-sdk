@@ -1565,7 +1565,7 @@ MatrixBaseApis.prototype.search = function(opts, callback) {
     }
 
     if (opts.custom_search_url) {
-        return this._http.requestOtherUrl(
+        return this._http.authedOtherUrl(
             callback, "POST", opts.custom_search_url + '/search', queryparams, opts.body,
         );
     }
