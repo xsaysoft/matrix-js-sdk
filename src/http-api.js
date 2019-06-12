@@ -641,6 +641,88 @@ module.exports.MatrixHttpApi.prototype = {
     },
 
     /**
+     * Perform an authorised request to the an arbitrary URL.
+     * Useful if we want to make a specific call to a proxy of our Homeserver.
+     * @param {Function} callback Optional. The callback to invoke on
+     * success/failure. See the promise return values for more information.
+     * @param {string} method The HTTP method e.g. "GET".
+     * @param {string} uri The HTTP URI
+     *
+     * @param {Object=} queryParams A dict of query params (these will NOT be
+     * urlencoded). If unspecified, there will be no query params.
+     *
+     * @param {Object} data The HTTP JSON body.
+     *
+     * @param {Object|Number=} opts additional options. If a number is specified,
+     * this is treated as `opts.localTimeoutMs`.
+     *
+     * @param {Number=} opts.localTimeoutMs The maximum amount of time to wait before
+     * timing out the request. If not specified, there is no timeout.
+     *
+     * @param {sting=} opts.prefix The full prefix to use e.g.
+     * "/_matrix/client/v2_alpha". If not specified, uses this.opts.prefix.
+     *
+     * @param {Object=} opts.headers map of additional request headers
+     *
+     * @return {module:client.Promise} Resolves to <code>{data: {Object},
+     * headers: {Object}, code: {Number}}</code>.
+     * If <code>onlyData</code> is set, this will resolve to the <code>data</code>
+     * object only.
+     * @return {module:http-api.MatrixError} Rejects with an error if a problem
+     * occurred. This includes network problems and Matrix-specific error JSON.
+     */
+    authedOtherUrl: function(callback, method, uri, queryParams, data, opts) {
+        if (!queryParams) {
+            queryParams = {};
+        }
+        if (this.useAuthorizationHeader) {
+            if (isFinite(opts)) {
+                // opts used to be localTimeoutMs
+                opts = {
+                    localTimeoutMs: opts,
+                };
+            }
+            if (!opts) {
+                opts = {};
+            }
+            if (!opts.headers) {
+                opts.headers = {};
+            }
+            if (!opts.headers.Authorization) {
+                opts.headers.Authorization = "Bearer " + this.opts.accessToken;
+            }
+            if (queryParams.access_token) {
+                delete queryParams.access_token;
+            }
+        } else {
+            if (!queryParams.access_token) {
+                queryParams.access_token = this.opts.accessToken;
+            }
+        }
+
+        const requestPromise = this._request(
+            callback, method, uri, queryParams, data, opts,
+        );
+
+        const self = this;
+        requestPromise.catch(function(err) {
+            if (err.errcode == 'M_UNKNOWN_TOKEN') {
+                self.event_emitter.emit("Session.logged_out");
+            } else if (err.errcode == 'M_CONSENT_NOT_GIVEN') {
+                self.event_emitter.emit(
+                    "no_consent",
+                    err.message,
+                    err.data.consent_uri,
+                );
+            }
+        });
+
+        // return the original promise, otherwise tests break due to it having to
+        // go around the event loop one more time to process the result of the request
+        return requestPromise;
+    },
+
+    /**
      * Form and return a homeserver request URL based on the given path
      * params and prefix.
      * @param {string} path The HTTP path <b>after</b> the supplied prefix e.g.
