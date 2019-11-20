@@ -33,9 +33,9 @@ import logger from '../src/logger';
  * Wrapper for a MockStorageApi, MockHttpBackend and MatrixClient
  *
  * @constructor
- * @param {string} userId
- * @param {string} deviceId
- * @param {string} accessToken
+ * @param {string=} userId
+ * @param {string=} deviceId
+ * @param {string=} accessToken
  *
  * @param {WebStorage=} sessionStoreBackend a web storage object to use for the
  *     session store. If undefined, we will create a MockStorageApi.

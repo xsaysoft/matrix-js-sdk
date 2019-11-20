@@ -26,11 +26,11 @@ import TestClient from '../../TestClient';
 import { makeTestClients } from './verification/util';
 
 async function makeTestClient(userInfo, options) {
-    const client = (new TestClient(
+    const client = new TestClient(
         userInfo.userId, userInfo.deviceId, undefined, undefined, options,
-    )).client;
+    );
 
-    await client.initCrypto();
+    await client.client.initCrypto();
 
     return client;
 }
@@ -76,14 +76,14 @@ describe("Secrets", function() {
                 },
             },
         );
-        alice._crypto._crossSigningInfo.setKeys({
+        alice.client._crypto._crossSigningInfo.setKeys({
             master: signingkeyInfo,
         });
 
-        const secretStorage = alice._crypto._secretStorage;
+        const secretStorage = alice.client._crypto._secretStorage;
 
-        alice.setAccountData = async function(eventType, contents, callback) {
-            alice.store.storeAccountDataEvents([
+        alice.client.setAccountData = async function(eventType, contents, callback) {
+            alice.client.store.storeAccountDataEvents([
                 new MatrixEvent({
                     type: eventType,
                     content: contents,
@@ -98,9 +98,9 @@ describe("Secrets", function() {
             algorithm: SECRET_STORAGE_ALGORITHM_V1,
             pubkey: pubkey,
         };
-        await alice._crypto._crossSigningInfo.signObject(keyAccountData, 'master');
+        await alice.client._crypto._crossSigningInfo.signObject(keyAccountData, 'master');
 
-        alice.store.storeAccountDataEvents([
+        alice.client.store.storeAccountDataEvents([
             new MatrixEvent({
                 type: "m.secret_storage.key.abc",
                 content: keyAccountData,
@@ -123,7 +123,7 @@ describe("Secrets", function() {
         );
 
         try {
-            await alice.storeSecret("foo", "bar", ["this secret does not exist"]);
+            await alice.client.storeSecret("foo", "bar", ["this secret does not exist"]);
             // should be able to use expect(...).toThrow() but mocha still fails
             // the test even when it throws for reasons I have no inclination to debug
             expect(true).toBeFalsy();
@@ -137,7 +137,7 @@ describe("Secrets", function() {
         );
 
         try {
-            await alice.storeSecret("foo", "bar", []);
+            await alice.client.storeSecret("foo", "bar", []);
             expect(true).toBeFalsy();
         } catch (e) {
         }
@@ -154,25 +154,25 @@ describe("Secrets", function() {
                 },
             },
         );
-        alice.setAccountData = async function(eventType, contents, callback) {
-            alice.store.storeAccountDataEvents([
+        alice.client.setAccountData = async function(eventType, contents, callback) {
+            alice.client.store.storeAccountDataEvents([
                 new MatrixEvent({
                     type: eventType,
                     content: contents,
                 }),
             ]);
         };
-        alice.resetCrossSigningKeys();
+        alice.client.resetCrossSigningKeys();
 
-        const newKeyId = await alice.addSecretKey(
+        const newKeyId = await alice.client.addSecretKey(
             SECRET_STORAGE_ALGORITHM_V1,
         );
         // we don't await on this because it waits for the event to come down the sync
         // which won't happen in the test setup
-        alice.setDefaultSecretStorageKeyId(newKeyId);
-        await alice.storeSecret("foo", "bar");
+        alice.client.setDefaultSecretStorageKeyId(newKeyId);
+        await alice.client.storeSecret("foo", "bar");
 
-        const accountData = alice.getAccountData('foo');
+        const accountData = alice.client.getAccountData('foo');
         expect(accountData.getContent().encrypted).toBeTruthy();
     });
 
@@ -182,7 +182,7 @@ describe("Secrets", function() {
         );
 
         try {
-            await alice.storeSecret("foo", "bar");
+            await alice.client.storeSecret("foo", "bar");
             expect(true).toBeFalsy();
         } catch (e) {
         }

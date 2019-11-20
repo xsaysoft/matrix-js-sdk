@@ -304,9 +304,10 @@ MatrixBaseApis.prototype.login = function(loginType, data, callback) {
 
     // merge data into login_data
     utils.extend(login_data, data);
-
+    console.log("DEBUG1");
     return this._http.authedRequest(
         (error, response) => {
+            console.log("DEBUG2", error, response);
             if (response && response.access_token && response.user_id) {
                 this._http.opts.accessToken = response.access_token;
                 this.credentials = {

@@ -130,19 +130,14 @@ describe("Crypto", function() {
         let bobClient;
 
         beforeEach(async function() {
-            aliceClient = (new TestClient(
-                "@alice:example.com", "alicedevice",
-            )).client;
-            bobClient = (new TestClient(
-                "@bob:example.com", "bobdevice",
-            )).client;
-            await aliceClient.initCrypto();
-            await bobClient.initCrypto();
+            aliceClient = new TestClient("@alice:example.com", "alicedevice");
+            bobClient = new TestClient("@bob:example.com", "bobdevice");
+            await aliceClient.client.initCrypto();
+            await bobClient.client.initCrypto();
         });
 
         afterEach(async function() {
-            aliceClient.stopClient();
-            bobClient.stopClient();
+            await Promise.all([aliceClient.stop(), bobClient.stop()]);
         });
 
         it(
@@ -158,7 +153,7 @@ describe("Crypto", function() {
 
                 async function keyshareEventForEvent(event, index) {
                     const eventContent = event.getWireContent();
-                    const key = await aliceClient._crypto._olmDevice
+                    const key = await aliceClient.client._crypto._olmDevice
                         .getInboundGroupSessionKey(
                             roomId, eventContent.sender_key, eventContent.session_id,
                             index,
@@ -187,12 +182,14 @@ describe("Crypto", function() {
                     "algorithm": "m.megolm.v1.aes-sha2",
                 };
                 const roomId = "!someroom";
-                const aliceRoom = new Room(roomId, aliceClient, "@alice:example.com", {});
-                const bobRoom = new Room(roomId, bobClient, "@bob:example.com", {});
-                aliceClient.store.storeRoom(aliceRoom);
-                bobClient.store.storeRoom(bobRoom);
-                await aliceClient.setRoomEncryption(roomId, encryptionCfg);
-                await bobClient.setRoomEncryption(roomId, encryptionCfg);
+                const aliceRoom = new Room(
+                    roomId, aliceClient.client, "@alice:example.com", {});
+                const bobRoom = new Room(
+                    roomId, bobClient.client, "@bob:example.com", {});
+                aliceClient.client.store.storeRoom(aliceRoom);
+                bobClient.client.store.storeRoom(bobRoom);
+                await aliceClient.client.setRoomEncryption(roomId, encryptionCfg);
+                await bobClient.client.setRoomEncryption(roomId, encryptionCfg);
                 const events = [
                     new MatrixEvent({
                         type: "m.room.message",
@@ -218,19 +215,19 @@ describe("Crypto", function() {
                 await Promise.all(events.map(async (event) => {
                     // alice encrypts each event, and then bob tries to decrypt
                     // them without any keys, so that they'll be in pending
-                    await aliceClient._crypto.encryptEvent(event, aliceRoom);
+                    await aliceClient.client._crypto.encryptEvent(event, aliceRoom);
                     event._clearEvent = {};
                     event._senderCurve25519Key = null;
                     event._claimedEd25519Key = null;
                     try {
-                        await bobClient._crypto.decryptEvent(event);
+                        await bobClient.client._crypto.decryptEvent(event);
                     } catch (e) {
                         // we expect this to fail because we don't have the
                         // decryption keys yet
                     }
                 }));
 
-                const bobDecryptor = bobClient._crypto._getRoomDecryptor(
+                const bobDecryptor = bobClient.client._crypto._getRoomDecryptor(
                     roomId, olmlib.MEGOLM_ALGORITHM,
                 );
 
@@ -247,7 +244,7 @@ describe("Crypto", function() {
                 expect(events[0].getContent().msgtype).toBe("m.bad.encrypted");
                 expect(events[1].getContent().msgtype).toNotBe("m.bad.encrypted");
 
-                const cryptoStore = bobClient._cryptoStore;
+                const cryptoStore = bobClient.client._cryptoStore;
                 const eventContent = events[0].getWireContent();
                 const senderKey = eventContent.sender_key;
                 const sessionId = eventContent.session_id;
@@ -287,8 +284,8 @@ describe("Crypto", function() {
                     sender_key: "senderkey",
                 },
             });
-            await aliceClient.cancelAndResendEventRoomKeyRequest(event);
-            const cryptoStore = aliceClient._cryptoStore;
+            await aliceClient.client.cancelAndResendEventRoomKeyRequest(event);
+            const cryptoStore = aliceClient.client._cryptoStore;
             const roomKeyRequestBody = {
                 algorithm: olmlib.MEGOLM_ALGORITHM,
                 room_id: "!someroom",
@@ -300,6 +297,7 @@ describe("Crypto", function() {
         });
 
         it("uses a new txnid for re-requesting keys", async function() {
+            // return;
             const event = new MatrixEvent({
                 sender: "@bob:example.com",
                 room_id: "!someroom",
@@ -327,7 +325,7 @@ describe("Crypto", function() {
                 return {func, promise};
             }
 
-            aliceClient.startClient();
+            aliceClient.client.startClient();
 
             const clock = lolex.install();
 
@@ -335,8 +333,8 @@ describe("Crypto", function() {
                 let promise;
                 // make a room key request, and record the transaction ID for the
                 // sendToDevice call
-                ({promise, func: aliceClient.sendToDevice} = awaitFunctionCall());
-                await aliceClient.cancelAndResendEventRoomKeyRequest(event);
+                ({promise, func: aliceClient.client.sendToDevice} = awaitFunctionCall());
+                await aliceClient.client.cancelAndResendEventRoomKeyRequest(event);
                 clock.runToLast();
                 let args = await promise;
                 const txnId = args[2];
@@ -347,13 +345,13 @@ describe("Crypto", function() {
                 await Promise.resolve();
 
                 // cancel and resend the room key request
-                ({promise, func: aliceClient.sendToDevice} = awaitFunctionCall());
-                await aliceClient.cancelAndResendEventRoomKeyRequest(event);
+                ({promise, func: aliceClient.client.sendToDevice} = awaitFunctionCall());
+                await aliceClient.client.cancelAndResendEventRoomKeyRequest(event);
                 clock.runToLast();
                 // the first call to sendToDevice will be the cancellation
                 args = await promise;
                 // the second call to sendToDevice will be the key request
-                ({promise, func: aliceClient.sendToDevice} = awaitFunctionCall());
+                ({promise, func: aliceClient.client.sendToDevice} = awaitFunctionCall());
                 clock.runToLast();
                 args = await promise;
                 clock.runToLast();

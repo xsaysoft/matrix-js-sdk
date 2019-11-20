@@ -35,6 +35,11 @@ describe("AutoDiscovery", function() {
         sdk.request(httpBackend.requestFn);
     });
 
+    afterEach(function() {
+        httpBackend.stop();
+    });
+
+
     it("should throw an error when no domain is specified", function() {
         return Promise.all([
             AutoDiscovery.findClientConfig(/* no args */).then(() => {
