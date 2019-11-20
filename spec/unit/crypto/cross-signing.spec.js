@@ -41,16 +41,14 @@ async function makeTestClient(userInfo, options, keys) {
     options.cryptoCallbacks = Object.assign(
         {}, { getCrossSigningKey, saveCrossSigningKeys }, options.cryptoCallbacks || {},
     );
-    const client = new TestClient(
+    const client = (new TestClient(
         userInfo.userId, userInfo.deviceId, undefined, undefined, options,
-    );
+    )).client;
 
-    await client.client.initCrypto();
+    await client.initCrypto();
 
     return client;
 }
-
-let alice;
 
 describe("Cross Signing", function() {
     if (!global.Olm) {
@@ -62,38 +60,33 @@ describe("Cross Signing", function() {
         await global.Olm.init();
     });
 
-    afterEach(async function() {
-        await alice.stop();
-    });
-
     it("should sign the master key with the device key", async function() {
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
         );
-        alice.client.uploadDeviceSigningKeys = expect.createSpy()
+        alice.uploadDeviceSigningKeys = expect.createSpy()
             .andCall(async (auth, keys) => {
                 await olmlib.verifySignature(
-                    alice.client._crypto._olmDevice, keys.master_key,
-                    "@alice:example.com", "Osborne2",
-                    alice.client._crypto._olmDevice.deviceEd25519Key,
+                    alice._crypto._olmDevice, keys.master_key, "@alice:example.com",
+                    "Osborne2", alice._crypto._olmDevice.deviceEd25519Key,
                 );
             });
-        alice.client.uploadKeySignatures = async () => {};
+        alice.uploadKeySignatures = async () => {};
         // set Alice's cross-signing key
-        await alice.client.resetCrossSigningKeys();
-        expect(alice.client.uploadDeviceSigningKeys).toHaveBeenCalled();
+        await alice.resetCrossSigningKeys();
+        expect(alice.uploadDeviceSigningKeys).toHaveBeenCalled();
     });
 
     it("should upload a signature when a user is verified", async function() {
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
         );
-        alice.client.uploadDeviceSigningKeys = async () => {};
-        alice.client.uploadKeySignatures = async () => {};
+        alice.uploadDeviceSigningKeys = async () => {};
+        alice.uploadKeySignatures = async () => {};
         // set Alice's cross-signing key
-        await alice.client.resetCrossSigningKeys();
+        await alice.resetCrossSigningKeys();
         // Alice downloads Bob's device key
-        alice.client._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
             keys: {
                 master: {
                     user_id: "@bob:example.com",
@@ -106,12 +99,11 @@ describe("Cross Signing", function() {
         });
         // Alice verifies Bob's key
         const promise = new Promise((resolve, reject) => {
-            alice.client.uploadKeySignatures = (...args) => {
+            alice.uploadKeySignatures = (...args) => {
                 resolve(...args);
             };
         });
-        await alice.client.setDeviceVerified(
-            "@bob:example.com", "bobs+master+pubkey", true);
+        await alice.setDeviceVerified("@bob:example.com", "bobs+master+pubkey", true);
         // Alice should send a signature of Bob's key to the server
         await promise;
     });
@@ -130,7 +122,7 @@ describe("Cross Signing", function() {
             0x34, 0xf2, 0x4b, 0x64, 0x9b, 0x52, 0xf8, 0x5f,
         ]);
 
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
             {
                 cryptoCallbacks: {
@@ -147,22 +139,21 @@ describe("Cross Signing", function() {
         );
 
         const keyChangePromise = new Promise((resolve, reject) => {
-            alice.client.once("crossSigning.keysChanged", async (e) => {
+            alice.once("crossSigning.keysChanged", async (e) => {
                 resolve(e);
-                await alice.client.checkOwnCrossSigningTrust();
+                await alice.checkOwnCrossSigningTrust();
             });
         });
 
         const uploadSigsPromise = new Promise((resolve, reject) => {
-            alice.client.uploadKeySignatures = expect.createSpy().andCall(
-                async (content) => {
+            alice.uploadKeySignatures = expect.createSpy().andCall(async (content) => {
                 await olmlib.verifySignature(
-                    alice.client._crypto._olmDevice,
+                    alice._crypto._olmDevice,
                     content["@alice:example.com"][
                         "nqOvzeuGWT/sRx3h7+MHoInYj3Uk2LD/unI9kDYcHwk"
                     ],
                     "@alice:example.com",
-                    "Osborne2", alice.client._crypto._olmDevice.deviceEd25519Key,
+                    "Osborne2", alice._crypto._olmDevice.deviceEd25519Key,
                 );
                 olmlib.pkVerify(
                     content["@alice:example.com"]["Osborne2"],
@@ -173,7 +164,7 @@ describe("Cross Signing", function() {
             });
         });
 
-        const deviceInfo = alice.client._crypto._deviceList._devices["@alice:example.com"]
+        const deviceInfo = alice._crypto._deviceList._devices["@alice:example.com"]
             .Osborne2;
         const aliceDevice = {
             user_id: "@alice:example.com",
@@ -181,7 +172,7 @@ describe("Cross Signing", function() {
         };
         aliceDevice.keys = deviceInfo.keys;
         aliceDevice.algorithms = deviceInfo.algorithms;
-        await alice.client._crypto._signObject(aliceDevice);
+        await alice._crypto._signObject(aliceDevice);
         olmlib.pkSign(aliceDevice, selfSigningKey, "@alice:example.com");
 
         // feed sync result that includes master key, ssk, device key
@@ -263,7 +254,7 @@ describe("Cross Signing", function() {
         ];
         setHttpResponses(alice, responses, true, true);
 
-        await alice.client.startClient();
+        await alice.startClient();
 
         // once ssk is confirmed, device key should be trusted
         await keyChangePromise;
@@ -282,13 +273,13 @@ describe("Cross Signing", function() {
     });
 
     it("should use trust chain to determine device verification", async function() {
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
         );
-        alice.client.uploadDeviceSigningKeys = async () => {};
-        alice.client.uploadKeySignatures = async () => {};
+        alice.uploadDeviceSigningKeys = async () => {};
+        alice.uploadKeySignatures = async () => {};
         // set Alice's cross-signing key
-        await alice.client.resetCrossSigningKeys();
+        await alice.resetCrossSigningKeys();
         // Alice downloads Bob's ssk and device key
         const bobMasterSigning = new global.Olm.PkSigning();
         const bobMasterPrivkey = bobMasterSigning.generate_seed();
@@ -309,7 +300,7 @@ describe("Cross Signing", function() {
                 ["ed25519:" + bobMasterPubkey]: sskSig,
             },
         };
-        alice.client._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
             keys: {
                 master: {
                     user_id: "@bob:example.com",
@@ -338,30 +329,28 @@ describe("Cross Signing", function() {
                 ["ed25519:" + bobPubkey]: sig,
             },
         };
-        alice.client._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
             Dynabook: bobDevice,
         });
         // Bob's device key should be TOFU
-        const bobTrust = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust.isVerified()).toBeFalsy();
         expect(bobTrust.isTofu()).toBeTruthy();
 
-        const bobDeviceTrust = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust.isVerified()).toBeFalsy();
         expect(bobDeviceTrust.isTofu()).toBeTruthy();
 
         // Alice verifies Bob's SSK
-        alice.client.uploadKeySignatures = () => {};
-        await alice.client.setDeviceVerified("@bob:example.com", bobMasterPubkey, true);
+        alice.uploadKeySignatures = () => {};
+        await alice.setDeviceVerified("@bob:example.com", bobMasterPubkey, true);
 
         // Bob's device key should be trusted
-        const bobTrust2 = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust2 = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust2.isCrossSigningVerified()).toBeTruthy();
         expect(bobTrust2.isTofu()).toBeTruthy();
 
-        const bobDeviceTrust2 = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust2 = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust2.isCrossSigningVerified()).toBeTruthy();
         expect(bobDeviceTrust2.isLocallyVerified()).toBeFalsy();
         expect(bobDeviceTrust2.isTofu()).toBeTruthy();
@@ -369,18 +358,18 @@ describe("Cross Signing", function() {
 
     it("should trust signatures received from other devices", async function() {
         const aliceKeys = {};
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
             null,
             aliceKeys,
         );
-        alice.client._crypto._deviceList.startTrackingDeviceList("@bob:example.com");
-        alice.client._crypto._deviceList.stopTrackingAllDeviceLists = () => {};
-        alice.client.uploadDeviceSigningKeys = async () => {};
-        alice.client.uploadKeySignatures = async () => {};
+        alice._crypto._deviceList.startTrackingDeviceList("@bob:example.com");
+        alice._crypto._deviceList.stopTrackingAllDeviceLists = () => {};
+        alice.uploadDeviceSigningKeys = async () => {};
+        alice.uploadKeySignatures = async () => {};
 
         // set Alice's cross-signing key
-        await alice.client.resetCrossSigningKeys();
+        await alice.resetCrossSigningKeys();
 
         const selfSigningKey = new Uint8Array([
             0x1e, 0xf4, 0x01, 0x6d, 0x4f, 0xa1, 0x73, 0x66,
@@ -390,14 +379,14 @@ describe("Cross Signing", function() {
         ]);
 
         const keyChangePromise = new Promise((resolve, reject) => {
-            alice.client._crypto._deviceList.once("userCrossSigningUpdated", (userId) => {
+            alice._crypto._deviceList.once("userCrossSigningUpdated", (userId) => {
                 if (userId === "@bob:example.com") {
                     resolve();
                 }
             });
         });
 
-        const deviceInfo = alice.client._crypto._deviceList._devices["@alice:example.com"]
+        const deviceInfo = alice._crypto._deviceList._devices["@alice:example.com"]
             .Osborne2;
         const aliceDevice = {
             user_id: "@alice:example.com",
@@ -405,7 +394,7 @@ describe("Cross Signing", function() {
         };
         aliceDevice.keys = deviceInfo.keys;
         aliceDevice.algorithms = deviceInfo.algorithms;
-        await alice.client._crypto._signObject(aliceDevice);
+        await alice._crypto._signObject(aliceDevice);
 
         const bobOlmAccount = new global.Olm.Account();
         bobOlmAccount.create();
@@ -515,30 +504,29 @@ describe("Cross Signing", function() {
         ];
         setHttpResponses(alice, responses);
 
-        await alice.client.startClient();
+        await alice.startClient();
 
         await keyChangePromise;
 
         // Bob's device key should be trusted
-        const bobTrust = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust.isCrossSigningVerified()).toBeTruthy();
         expect(bobTrust.isTofu()).toBeTruthy();
 
-        const bobDeviceTrust = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust.isCrossSigningVerified()).toBeTruthy();
         expect(bobDeviceTrust.isLocallyVerified()).toBeFalsy();
         expect(bobDeviceTrust.isTofu()).toBeTruthy();
     });
 
     it("should dis-trust an unsigned device", async function() {
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
         );
-        alice.client.uploadDeviceSigningKeys = async () => {};
-        alice.client.uploadKeySignatures = async () => {};
+        alice.uploadDeviceSigningKeys = async () => {};
+        alice.uploadKeySignatures = async () => {};
         // set Alice's cross-signing key
-        await alice.client.resetCrossSigningKeys();
+        await alice.resetCrossSigningKeys();
         // Alice downloads Bob's ssk and device key
         // (NOTE: device key is not signed by ssk)
         const bobMasterSigning = new global.Olm.PkSigning();
@@ -560,7 +548,7 @@ describe("Cross Signing", function() {
                 ["ed25519:" + bobMasterPubkey]: sskSig,
             },
         };
-        alice.client._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
             keys: {
                 master: {
                     user_id: "@bob:example.com",
@@ -583,32 +571,30 @@ describe("Cross Signing", function() {
                 "ed25519:Dynabook": "someOtherPubkey",
             },
         };
-        alice.client._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
             Dynabook: bobDevice,
         });
         // Bob's device key should be untrusted
-        const bobDeviceTrust = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust.isVerified()).toBeFalsy();
         expect(bobDeviceTrust.isTofu()).toBeFalsy();
 
         // Alice verifies Bob's SSK
-        await alice.client.setDeviceVerified("@bob:example.com", bobMasterPubkey, true);
+        await alice.setDeviceVerified("@bob:example.com", bobMasterPubkey, true);
 
         // Bob's device key should be untrusted
-        const bobDeviceTrust2 = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust2 = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust2.isVerified()).toBeFalsy();
         expect(bobDeviceTrust2.isTofu()).toBeFalsy();
     });
 
     it("should dis-trust a user when their ssk changes", async function() {
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
         );
-        alice.client.uploadDeviceSigningKeys = async () => {};
-        alice.client.uploadKeySignatures = async () => {};
-        await alice.client.resetCrossSigningKeys();
+        alice.uploadDeviceSigningKeys = async () => {};
+        alice.uploadKeySignatures = async () => {};
+        await alice.resetCrossSigningKeys();
         // Alice downloads Bob's keys
         const bobMasterSigning = new global.Olm.PkSigning();
         const bobMasterPrivkey = bobMasterSigning.generate_seed();
@@ -629,7 +615,7 @@ describe("Cross Signing", function() {
                 ["ed25519:" + bobMasterPubkey]: sskSig,
             },
         };
-        alice.client._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
             keys: {
                 master: {
                     user_id: "@bob:example.com",
@@ -657,16 +643,15 @@ describe("Cross Signing", function() {
         bobDevice.signatures = {};
         bobDevice.signatures["@bob:example.com"] = {};
         bobDevice.signatures["@bob:example.com"]["ed25519:" + bobPubkey] = sig;
-        alice.client._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
             Dynabook: bobDevice,
         });
         // Alice verifies Bob's SSK
-        alice.client.uploadKeySignatures = () => {};
-        await alice.client.setDeviceVerified("@bob:example.com", bobMasterPubkey, true);
+        alice.uploadKeySignatures = () => {};
+        await alice.setDeviceVerified("@bob:example.com", bobMasterPubkey, true);
 
         // Bob's device key should be trusted
-        const bobDeviceTrust = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust.isVerified()).toBeTruthy();
         expect(bobDeviceTrust.isTofu()).toBeTruthy();
 
@@ -690,7 +675,7 @@ describe("Cross Signing", function() {
                 ["ed25519:" + bobMasterPubkey2]: sskSig2,
             },
         };
-        alice.client._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeCrossSigningForUser("@bob:example.com", {
             keys: {
                 master: {
                     user_id: "@bob:example.com",
@@ -705,47 +690,44 @@ describe("Cross Signing", function() {
             unsigned: {},
         });
         // Bob's and his device should be untrusted
-        const bobTrust = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust.isVerified()).toBeFalsy();
         expect(bobTrust.isTofu()).toBeFalsy();
 
-        const bobDeviceTrust2 = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust2 = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust2.isVerified()).toBeFalsy();
         expect(bobDeviceTrust2.isTofu()).toBeFalsy();
 
         // Alice verifies Bob's SSK
-        alice.client.uploadKeySignatures = () => {};
-        await alice.client.setDeviceVerified("@bob:example.com", bobMasterPubkey2, true);
+        alice.uploadKeySignatures = () => {};
+        await alice.setDeviceVerified("@bob:example.com", bobMasterPubkey2, true);
 
         // Bob should be trusted but not his device
-        const bobTrust2 = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust2 = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust2.isVerified()).toBeTruthy();
 
-        const bobDeviceTrust3 = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust3 = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust3.isVerified()).toBeFalsy();
 
         // Alice gets new signature for device
         const sig2 = bobSigning2.sign(bobDeviceString);
         bobDevice.signatures["@bob:example.com"]["ed25519:" + bobPubkey2] = sig2;
-        alice.client._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
+        alice._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
             Dynabook: bobDevice,
         });
 
         // Bob's device should be trusted again (but not TOFU)
-        const bobTrust3 = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust3 = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust3.isVerified()).toBeTruthy();
 
-        const bobDeviceTrust4 = alice.client.checkDeviceTrust(
-            "@bob:example.com", "Dynabook");
+        const bobDeviceTrust4 = alice.checkDeviceTrust("@bob:example.com", "Dynabook");
         expect(bobDeviceTrust4.isCrossSigningVerified()).toBeTruthy();
     });
 
     it("should offer to upgrade device verifications to cross-signing", async function() {
         let upgradeResolveFunc;
 
-        alice = await makeTestClient(
+        const alice = await makeTestClient(
             {userId: "@alice:example.com", deviceId: "Osborne2"},
             {
                 cryptoCallbacks: {
@@ -761,28 +743,28 @@ describe("Cross Signing", function() {
             {userId: "@bob:example.com", deviceId: "Dynabook"},
         );
 
-        bob.client.uploadDeviceSigningKeys = async () => {};
-        bob.client.uploadKeySignatures = async () => {};
+        bob.uploadDeviceSigningKeys = async () => {};
+        bob.uploadKeySignatures = async () => {};
         // set Bob's cross-signing key
-        await bob.client.resetCrossSigningKeys();
-        alice.client._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
+        await bob.resetCrossSigningKeys();
+        alice._crypto._deviceList.storeDevicesForUser("@bob:example.com", {
             Dynabook: {
                 algorithms: ["m.olm.curve25519-aes-sha256", "m.megolm.v1.aes-sha"],
                 keys: {
-                    "curve25519:Dynabook": bob.client._crypto._olmDevice.deviceCurve25519Key,
-                    "ed25519:Dynabook": bob.client._crypto._olmDevice.deviceEd25519Key,
+                    "curve25519:Dynabook": bob._crypto._olmDevice.deviceCurve25519Key,
+                    "ed25519:Dynabook": bob._crypto._olmDevice.deviceEd25519Key,
                 },
                 verified: 1,
                 known: true,
             },
         });
-        alice.client._crypto._deviceList.storeCrossSigningForUser(
+        alice._crypto._deviceList.storeCrossSigningForUser(
             "@bob:example.com",
-            bob.client._crypto._crossSigningInfo.toStorage(),
+            bob._crypto._crossSigningInfo.toStorage(),
         );
 
-        alice.client.uploadDeviceSigningKeys = async () => {};
-        alice.client.uploadKeySignatures = async () => {};
+        alice.uploadDeviceSigningKeys = async () => {};
+        alice.uploadKeySignatures = async () => {};
         // when alice sets up cross-signing, she should notice that bob's
         // cross-signing key is signed by his Dynabook, which alice has
         // verified, and ask if the device verification should be upgraded to a
@@ -790,29 +772,28 @@ describe("Cross Signing", function() {
         let upgradePromise = new Promise((resolve) => {
             upgradeResolveFunc = resolve;
         });
-        await alice.client.resetCrossSigningKeys();
+        await alice.resetCrossSigningKeys();
         await upgradePromise;
 
-        const bobTrust = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust.isCrossSigningVerified()).toBeTruthy();
         expect(bobTrust.isTofu()).toBeTruthy();
 
         // "forget" that Bob is trusted
-        delete alice.client._crypto._deviceList._crossSigningInfo["@bob:example.com"]
+        delete alice._crypto._deviceList._crossSigningInfo["@bob:example.com"]
             .keys.master.signatures["@alice:example.com"];
 
-        const bobTrust2 = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust2 = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust2.isCrossSigningVerified()).toBeFalsy();
         expect(bobTrust2.isTofu()).toBeTruthy();
 
         upgradePromise = new Promise((resolve) => {
             upgradeResolveFunc = resolve;
         });
-        alice.client._crypto._deviceList.emit(
-            "userCrossSigningUpdated", "@bob:example.com");
+        alice._crypto._deviceList.emit("userCrossSigningUpdated", "@bob:example.com");
         await upgradePromise;
 
-        const bobTrust3 = alice.client.checkUserTrust("@bob:example.com");
+        const bobTrust3 = alice.checkUserTrust("@bob:example.com");
         expect(bobTrust3.isCrossSigningVerified()).toBeTruthy();
         expect(bobTrust3.isTofu()).toBeTruthy();
     });
