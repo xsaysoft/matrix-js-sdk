@@ -361,7 +361,7 @@ describe("MatrixClient event timelines", function() {
                         .toEqual("start_token");
                     // expect(tl.getPaginationToken(EventTimeline.FORWARDS))
                     //    .toEqual("s_5_4");
-                }).done(() => deferred.resolve(),
+                }).then(() => deferred.resolve(),
                         (e) => deferred.reject(e));
             });
 
