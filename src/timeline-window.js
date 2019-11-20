@@ -132,12 +132,14 @@ TimelineWindow.prototype.load = function(initialEventId, initialWindowSize) {
     // feeling snappy.
     //
     if (initialEventId) {
-        const prom = this._client.getEventTimeline(this._timelineSet, initialEventId);
-
-        if (prom.isFulfilled()) {
-            initFields(prom.value());
+        const timeline = this._timelineSet.getTimelineForEvent(initialEventId);
+        if (timeline) {
+            // This is a hot-path optimization by skipping a promise tick
+            // by repeating a no-op sync branch in MatrixClient.getEventTimeline
+            initFields(timeline);
             return Promise.resolve();
         } else {
+            const prom = this._client.getEventTimeline(this._timelineSet, initialEventId);
             return prom.then(initFields);
         }
     } else {

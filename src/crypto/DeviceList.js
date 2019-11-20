@@ -775,7 +775,7 @@ class DeviceListUpdateSerialiser {
             }
 
             return prom;
-        }).done(() => {
+        }).then(() => {
             logger.log('Completed key download for ' + downloadUsers);
 
             this._downloadInProgress = false;
