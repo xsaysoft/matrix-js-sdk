@@ -22,7 +22,7 @@ limitations under the License.
  * @module crypto/algorithms/megolm
  */
 
-import Promise from 'bluebird';
+// import Promise from 'bluebird';
 import logger from '../../logger';
 
 const utils = require("../../utils");

@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Promise from 'bluebird';
+// import Promise from 'bluebird';
 
 import logger from '../../logger';
 import utils from '../../utils';

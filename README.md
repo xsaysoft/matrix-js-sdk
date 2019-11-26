@@ -161,7 +161,7 @@ which will be fulfilled in the future.
 The typical usage is something like:
 
 ```javascript
-  matrixClient.someMethod(arg1, arg2).done(function(result) {
+  matrixClient.someMethod(arg1, arg2).then(function(result) {
     ...
   });
 ```
@@ -206,7 +206,7 @@ core functionality of the SDK. These examples assume the SDK is setup like this:
 ```javascript
    matrixClient.on("RoomMember.membership", function(event, member) {
        if (member.membership === "invite" && member.userId === myUserId) {
-           matrixClient.joinRoom(member.roomId).done(function() {
+           matrixClient.joinRoom(member.roomId).then(function() {
                console.log("Auto-joined %s", member.roomId);
            });
        }
