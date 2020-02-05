@@ -21,6 +21,7 @@ limitations under the License.
 
 import * as utils from "../utils";
 import {EventEmitter} from "events";
+import {MatrixEvent, Content} from "./event";
 
 /**
  * Construct a new User. A User must have an ID and can optionally have extra
@@ -47,7 +48,7 @@ import {EventEmitter} from "events";
  * @prop {Object} events The events describing this user.
  * @prop {MatrixEvent} events.presence The m.presence event for this user.
  */
-export function User(userId) {
+export function User(userId: string) {
     this.userId = userId;
     this.presence = "offline";
     this.presenceStatusMsg = null;
@@ -75,7 +76,7 @@ utils.inherits(User, EventEmitter);
  * @fires module:client~MatrixClient#event:"User.displayName"
  * @fires module:client~MatrixClient#event:"User.avatarUrl"
  */
-User.prototype.setPresenceEvent = function(event) {
+User.prototype.setPresenceEvent = function(event: MatrixEvent): void {
     if (event.getType() !== "m.presence") {
         return;
     }
@@ -83,37 +84,38 @@ User.prototype.setPresenceEvent = function(event) {
     this.events.presence = event;
 
     const eventsToFire = [];
-    if (event.getContent().presence !== this.presence || firstFire) {
+    const content: Partial<Content> = event.getContent();
+    if (content.presence !== this.presence || firstFire) {
         eventsToFire.push("User.presence");
     }
-    if (event.getContent().avatar_url &&
-        event.getContent().avatar_url !== this.avatarUrl) {
+    if (content.avatar_url &&
+        content.avatar_url !== this.avatarUrl) {
         eventsToFire.push("User.avatarUrl");
     }
-    if (event.getContent().displayname &&
-        event.getContent().displayname !== this.displayName) {
+    if (content.displayname &&
+        content.displayname !== this.displayName) {
         eventsToFire.push("User.displayName");
     }
-    if (event.getContent().currently_active !== undefined &&
-        event.getContent().currently_active !== this.currentlyActive) {
+    if (content.currently_active !== undefined &&
+        content.currently_active !== this.currentlyActive) {
         eventsToFire.push("User.currentlyActive");
     }
 
-    this.presence = event.getContent().presence;
+    this.presence = content.presence;
     eventsToFire.push("User.lastPresenceTs");
 
-    if (event.getContent().status_msg) {
-      this.presenceStatusMsg = event.getContent().status_msg;
+    if (content.status_msg) {
+      this.presenceStatusMsg = content.status_msg;
     }
-    if (event.getContent().displayname) {
-        this.displayName = event.getContent().displayname;
+    if (content.displayname) {
+        this.displayName = content.displayname;
     }
-    if (event.getContent().avatar_url) {
-        this.avatarUrl = event.getContent().avatar_url;
+    if (content.avatar_url) {
+        this.avatarUrl = content.avatar_url;
     }
-    this.lastActiveAgo = event.getContent().last_active_ago;
+    this.lastActiveAgo = content.last_active_ago;
     this.lastPresenceTs = Date.now();
-    this.currentlyActive = event.getContent().currently_active;
+    this.currentlyActive = content.currently_active;
 
     this._updateModifiedTime();
 
@@ -127,7 +129,7 @@ User.prototype.setPresenceEvent = function(event) {
  * as there is no underlying MatrixEvent to emit with.
  * @param {string} name The new display name.
  */
-User.prototype.setDisplayName = function(name) {
+User.prototype.setDisplayName = function(name: string): void {
     const oldName = this.displayName;
     this.displayName = name;
     if (name !== oldName) {
@@ -141,7 +143,7 @@ User.prototype.setDisplayName = function(name) {
  * in response to this as there is no underlying MatrixEvent to emit with.
  * @param {string} name The new display name.
  */
-User.prototype.setRawDisplayName = function(name) {
+User.prototype.setRawDisplayName = function(name: string): void {
     this.rawDisplayName = name;
 };
 
@@ -151,7 +153,7 @@ User.prototype.setRawDisplayName = function(name) {
  * as there is no underlying MatrixEvent to emit with.
  * @param {string} url The new avatar URL.
  */
-User.prototype.setAvatarUrl = function(url) {
+User.prototype.setAvatarUrl = function(url: string): void {
     const oldUrl = this.avatarUrl;
     this.avatarUrl = url;
     if (url !== oldUrl) {
@@ -172,7 +174,7 @@ User.prototype._updateModifiedTime = function() {
  * property on this object. It is updated <i>before</i> firing events.
  * @return {number} The timestamp
  */
-User.prototype.getLastModifiedTime = function() {
+User.prototype.getLastModifiedTime = function(): number {
     return this._modified;
 };
 
@@ -181,7 +183,7 @@ User.prototype.getLastModifiedTime = function() {
  * It is *NOT* accurate if this.currentlyActive is true.
  * @return {number} The timestamp
  */
-User.prototype.getLastActiveTs = function() {
+User.prototype.getLastActiveTs = function(): number {
     return this.lastPresenceTs - this.lastActiveAgo;
 };
 
@@ -190,9 +192,10 @@ User.prototype.getLastActiveTs = function() {
  * @param {MatrixEvent} event The <code>im.vector.user_status</code> event.
  * @fires module:client~MatrixClient#event:"User._unstable_statusMessage"
  */
-User.prototype._unstable_updateStatusMessage = function(event) {
-    if (!event.getContent()) this._unstable_statusMessage = "";
-    else this._unstable_statusMessage = event.getContent()["status"];
+User.prototype._unstable_updateStatusMessage = function(event: MatrixEvent): void {
+    const content: {} | Content = event.getContent();
+    if (content === {}) this._unstable_statusMessage = "";
+    else this._unstable_statusMessage = (content as Content)["status"];
     this._updateModifiedTime();
     this.emit("User._unstable_statusMessage", this);
 };
