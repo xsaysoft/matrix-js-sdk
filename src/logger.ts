@@ -19,7 +19,7 @@ limitations under the License.
  * @module logger
  */
 
-import log from "loglevel";
+import * as log from "loglevel";
 
 // This is to demonstrate, that you can use any namespace you want.
 // Namespaces allow you to turn on/off the logging for specific parts of the
